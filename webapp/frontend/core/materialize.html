@@ -1,0 +1,318 @@
+{% extends 'core/page_layout.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="mb-4 fw-bold"><i class="bi bi-play-fill me-2"></i>Materialize Metrics</h2>
+
+  <!-- Step 1: Select Metrics & Date -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><span class="badge bg-success me-2">1</span>Select Metrics & Snapshot Date</h5>
+      <button class="btn btn-sm btn-outline-secondary" id="btnRefreshMetrics" title="Refresh metrics list">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+    <div class="card-body">
+
+      <!-- Date row -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <label for="snapshotDate" class="form-label fw-semibold">Snapshot Date</label>
+          <input type="date" class="form-control" id="snapshotDate" required>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="mb-3">
+        <input type="text" class="form-control" id="metricSearch" placeholder="Search metrics..." disabled>
+      </div>
+
+      <!-- Metrics List -->
+      <div id="metricsContainer" class="border rounded p-3 bg-light" style="max-height: 400px; overflow-y: auto; min-height: 150px;">
+        <p class="text-muted text-center my-4">
+          <span class="spinner-border spinner-border-sm me-2"></span>Loading metrics...
+        </p>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <span><span id="selectedCount">0</span> metric(s) selected</span>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary me-2" id="btnSelectAll" disabled>Select All</button>
+          <button class="btn btn-sm btn-outline-secondary" id="btnClearAll" disabled>Clear All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Build Plan -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><span class="badge bg-info me-2">2</span>Execution Plan</h5>
+      <button class="btn btn-primary btn-sm" id="btnBuildPlan" disabled>
+        <i class="bi bi-diagram-3 me-1"></i>Build Plan
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="planContainer">
+        <p class="text-muted text-center"><i class="bi bi-info-circle me-2"></i>Select metrics and click "Build Plan".</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Submit -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><span class="badge bg-warning me-2">3</span>Submit Job</h5>
+      <button class="btn btn-success btn-sm" id="btnSubmitJob" disabled>
+        <i class="bi bi-send-fill me-1"></i>Submit to Databricks
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="submitResult">
+        <p class="text-muted text-center"><i class="bi bi-rocket-takeoff me-2"></i>Build a plan first, then submit.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const state = {
+    metrics: [],
+    selected: new Set(),
+    plan: null,
+  };
+
+  const $snapshotDate = document.getElementById('snapshotDate');
+  const $btnRefresh = document.getElementById('btnRefreshMetrics');
+  const $btnBuild = document.getElementById('btnBuildPlan');
+  const $btnSubmit = document.getElementById('btnSubmitJob');
+  const $btnSelectAll = document.getElementById('btnSelectAll');
+  const $btnClearAll = document.getElementById('btnClearAll');
+  const $metricSearch = document.getElementById('metricSearch');
+  const $metricsContainer = document.getElementById('metricsContainer');
+  const $selectedCount = document.getElementById('selectedCount');
+  const $planContainer = document.getElementById('planContainer');
+  const $submitResult = document.getElementById('submitResult');
+
+  // Set default date to today
+  $snapshotDate.value = new Date().toISOString().split('T')[0];
+
+  // ── Load Metrics (auto on page load) ─────────────────────────────────────
+  async function loadMetrics() {
+    $metricsContainer.innerHTML = '<p class="text-muted text-center my-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading metrics...</p>';
+    $metricSearch.disabled = true;
+    $btnSelectAll.disabled = true;
+    $btnClearAll.disabled = true;
+    if ($btnRefresh) { $btnRefresh.disabled = true; $btnRefresh.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+
+    try {
+      const resp = await fetch('/api/metrics');
+      const data = await resp.json();
+      console.log('[metrics]', data);
+      if (!data.success) throw new Error(data.error || 'Failed to load metrics');
+      state.metrics = data.data;
+      renderMetrics(state.metrics);
+      $metricSearch.disabled = false;
+      $btnSelectAll.disabled = false;
+      $btnClearAll.disabled = false;
+    } catch (err) {
+      $metricsContainer.innerHTML = `<div class="alert alert-danger mb-0">${err.message}</div>`;
+    } finally {
+      if ($btnRefresh) { $btnRefresh.disabled = false; $btnRefresh.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }
+    }
+  }
+
+  // Auto-load on page open
+  loadMetrics();
+
+  // Refresh button
+  if ($btnRefresh) $btnRefresh.addEventListener('click', loadMetrics);
+
+  // ── Search Filter ────────────────────────────────────────────────────────
+  $metricSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    const filtered = state.metrics.filter(m =>
+      (m.metric_name || '').toLowerCase().includes(q) ||
+      (m.description || '').toLowerCase().includes(q)
+    );
+    renderMetrics(filtered);
+  });
+
+  // ── Select All / Clear All ───────────────────────────────────────────────
+  $btnSelectAll.addEventListener('click', function() {
+    state.metrics.forEach(m => state.selected.add(m.metric_name));
+    renderMetrics(state.metrics);
+    updateSelectedCount();
+  });
+
+  $btnClearAll.addEventListener('click', function() {
+    state.selected.clear();
+    renderMetrics(state.metrics);
+    updateSelectedCount();
+  });
+
+  // ── Build Plan ───────────────────────────────────────────────────────────
+  $btnBuild.addEventListener('click', async function() {
+    const snapshotDate = $snapshotDate.value;
+    if (!snapshotDate) { alert('Please select a snapshot date.'); return; }
+    if (state.selected.size === 0) { alert('Please select at least one metric.'); return; }
+
+    $btnBuild.disabled = true;
+    $btnBuild.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Building...';
+
+    try {
+      const resp = await fetch('/api/build-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metrics: Array.from(state.selected),
+          snapshot_date: snapshotDate,
+        }),
+      });
+      const data = await resp.json();
+
+      if (!data.success) throw new Error(data.error || 'Failed to build plan');
+
+      state.plan = data;
+      renderPlan(data);
+      $btnSubmit.disabled = false;
+    } catch (err) {
+      $planContainer.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    } finally {
+      $btnBuild.disabled = false;
+      $btnBuild.innerHTML = '<i class="bi bi-diagram-3 me-1"></i>Build Plan';
+    }
+  });
+
+  // ── Submit Job ───────────────────────────────────────────────────────────
+  $btnSubmit.addEventListener('click', async function() {
+    if (!state.plan) { alert('Build a plan first.'); return; }
+
+    if (!confirm(`Submit materialization job for ${state.plan.total_metrics} metrics on ${state.plan.snapshot_date}?`)) return;
+
+    $btnSubmit.disabled = true;
+    $btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
+
+    try {
+      const resp = await fetch('/api/submit-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: state.plan.plan,
+          snapshot_date: state.plan.snapshot_date,
+          batch_size: 100,
+        }),
+      });
+      const data = await resp.json();
+
+      if (!data.success) {
+        const detail = data.detail ? `<pre class="mt-2 small text-muted mb-0" style="max-height:200px;overflow:auto">${data.detail}</pre>` : '';
+        $submitResult.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${data.error || 'Failed to submit job'}${detail}</div>`;
+        return;
+      }
+
+      $submitResult.innerHTML = `
+        <div class="alert alert-success">
+          <h5 class="fw-bold"><i class="bi bi-check-circle-fill me-2"></i>Job Submitted Successfully</h5>
+          <p class="mb-2">${data.message}</p>
+          <p class="mb-0">Run ID: <strong>${data.run_id}</strong></p>
+          ${data.run_page_url ? `<a href="${data.run_page_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Run on Databricks</a>` : ''}
+        </div>
+      `;
+    } catch (err) {
+      $submitResult.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    } finally {
+      $btnSubmit.disabled = false;
+      $btnSubmit.innerHTML = '<i class="bi bi-send me-1"></i>Submit to Databricks';
+    }
+  });
+
+  // ── Render Helpers ───────────────────────────────────────────────────────
+  function renderMetrics(metrics) {
+    if (!metrics.length) {
+      $metricsContainer.innerHTML = '<p class="text-muted text-center my-4">No metrics found.</p>';
+      return;
+    }
+
+    let html = '<div class="list-group list-group-flush">';
+    metrics.forEach(m => {
+      const name = m.metric_name || m.name || Object.values(m)[0] || '';
+      const desc = m.description || m.metric_description || '';
+      const isSelected = state.selected.has(name);
+      html += `
+        <div class="list-group-item list-group-item-action d-flex align-items-center gap-3 ${isSelected ? 'list-group-item-success' : ''}" style="cursor:pointer;" data-metric="${name}">
+          <input type="checkbox" class="form-check-input flex-shrink-0" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">
+          <div>
+            <strong>${name}</strong>
+            ${desc ? `<br><small class="text-muted">${desc}</small>` : ''}
+          </div>
+        </div>`;
+    });
+    html += '</div>';
+    $metricsContainer.innerHTML = html;
+
+    // Attach click handler to list items (for clicking on text)
+    $metricsContainer.querySelectorAll('[data-metric]').forEach(el => {
+      el.addEventListener('click', function(e) {
+        const metric = this.dataset.metric;
+        const checkbox = this.querySelector('input[type="checkbox"]');
+        if (state.selected.has(metric)) {
+          state.selected.delete(metric);
+          this.classList.remove('list-group-item-success');
+          checkbox.checked = false;
+        } else {
+          state.selected.add(metric);
+          this.classList.add('list-group-item-success');
+          checkbox.checked = true;
+        }
+        updateSelectedCount();
+      });
+    });
+
+    // Attach change listener to checkboxes (for clicking directly on checkbox)
+    $metricsContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function(e) {
+        const metric = this.closest('[data-metric]').dataset.metric;
+        if (this.checked) {
+          state.selected.add(metric);
+          this.closest('[data-metric]').classList.add('list-group-item-success');
+        } else {
+          state.selected.delete(metric);
+          this.closest('[data-metric]').classList.remove('list-group-item-success');
+        }
+        updateSelectedCount();
+      });
+    });
+  }
+
+  function updateSelectedCount() {
+    $selectedCount.textContent = state.selected.size;
+    $btnBuild.disabled = state.selected.size === 0;
+    // Reset plan when selection changes
+    state.plan = null;
+    $btnSubmit.disabled = true;
+  }
+
+  function renderPlan(data) {
+    let html = `
+      <div class="alert alert-info mb-3">
+        <strong>Plan Summary:</strong> ${data.total_metrics} metric(s) across ${data.plan.length} level(s) for snapshot <strong>${data.snapshot_date}</strong>
+      </div>`;
+
+    data.plan.forEach(level => {
+      html += `
+        <div class="mb-3 ps-3" style="border-left:3px solid #0d6efd;">
+          <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge bg-primary">${level.metrics.length}</span></h6>
+          <div class="d-flex flex-wrap gap-2">
+            ${level.metrics.map(m => `<span class="badge bg-light text-dark border">${typeof m === 'object' ? m.name : m}</span>`).join('')}
+          </div>
+        </div>`;
+    });
+
+    $planContainer.innerHTML = html;
+  }
+})();
+</script>
+{% endblock extra_js %}

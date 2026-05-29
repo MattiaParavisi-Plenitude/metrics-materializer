@@ -1,0 +1,23 @@
+# ─── Metrics Materializer Configuration ───────────────────────────────────────
+# All compute and job settings in one place.
+# Environment variables override these values if set.
+
+databricks:
+  warehouse_id: "be371ccfd95a94d1"
+  catalog: "p_ind_core_mtrcs"
+  schema_name: "metrics"
+  schema_util: "utils"
+  workspace_file_path: "/Workspace/Shared/1850-Metrics-Master/.bundle/1850-Metrics-Master/dev/files"
+  sql_call_file: "src/calls/call_compute_metric.sql"
+
+views:
+  metrics: "p_ind_core_mtrcs.metadata.metrics"
+  hierarchy: "p_ind_core_mtrcs.metadata.metrics_hierarchy"
+  status_transitions: "p_ind_core_mtrcs.metadata.metrics_status_transitions"
+
+job:
+  acl_group_name: "GG.Appl.DPP1850.DE-Prod.ENINET"
+  name_prefix: "METR-COMPUTE-"
+  timeout_seconds: 7200
+  max_retries: 3
+  min_retry_interval_millis: 3000

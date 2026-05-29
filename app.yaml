@@ -1,0 +1,13 @@
+command: [
+  "flask",
+  "--app",
+  "app.py",
+  "run"
+]
+
+env:
+  - name: "DATABRICKS_WAREHOUSE_ID"
+    valueFrom: "sql-warehouse"
+
+  - name: "FLASK_ENV"
+    value: "development"

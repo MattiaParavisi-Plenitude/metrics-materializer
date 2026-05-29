@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  {% include 'core/layout/head.html' %}
+  {% block extrastyle %}{% endblock extrastyle %}
+</head>
+
+<body>
+  {% block nav %}
+  {% include 'core/layout/nav.html' %}
+  {% endblock nav %}
+
+  <main class="py-4">
+    {% block content %}{% endblock content %}
+  </main>
+
+  {% block footer %}
+  {% include 'core/layout/footer.html' %}
+  {% endblock footer %}
+
+  {% include 'core/layout/scripts.html' %}
+  {% block extra_js %}{% endblock extra_js %}
+</body>
+
+</html>

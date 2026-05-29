@@ -1,0 +1,516 @@
+{% extends 'core/page_layout.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="mb-4 fw-bold"><i class="bi bi-calendar-event me-2"></i>Schedule Metrics Job</h2>
+
+  <!-- Step 1: Select Metrics -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><span class="badge bg-success me-2">1</span>Select Metrics & Snapshot Date</h5>
+      <button class="btn btn-sm btn-outline-secondary" id="btnRefreshMetrics" title="Refresh metrics list">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+    <div class="card-body">
+
+      <!-- Date row -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <label for="snapshotDate" class="form-label fw-semibold">Snapshot Date</label>
+          <input type="date" class="form-control" id="snapshotDate" required>
+          <div class="form-text">Used for <span class="badge bg-primary badge-sm">SNAPSHOT</span> metrics. Non-snapshot metrics always use <code>current_date()</code>.</div>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="mb-3">
+        <input type="text" class="form-control" id="metricSearch" placeholder="Search metrics..." disabled>
+      </div>
+
+      <!-- Metrics List -->
+      <div id="metricsContainer" class="border rounded p-3 bg-light" style="max-height: 400px; overflow-y: auto; min-height: 150px;">
+        <p class="text-muted text-center my-4">
+          <span class="spinner-border spinner-border-sm me-2"></span>Loading metrics...
+        </p>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <span><span id="selectedCount">0</span> metric(s) selected</span>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary me-2" id="btnSelectAll" disabled>Select All</button>
+          <button class="btn btn-sm btn-outline-secondary" id="btnClearAll" disabled>Clear All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Build Plan -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><span class="badge bg-info me-2">2</span>Execution Plan</h5>
+      <button class="btn btn-primary btn-sm" id="btnBuildPlan" disabled>
+        <i class="bi bi-diagram-3 me-1"></i>Build Plan
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="planContainer">
+        <p class="text-muted text-center"><i class="bi bi-info-circle me-2"></i>Select metrics and click "Build Plan".</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: CRON Schedule -->
+  <div class="card mb-4 shadow-sm" id="scheduleConfigCard">
+    <div class="card-header bg-white">
+      <h5 class="mb-0 fw-bold"><span class="badge bg-warning me-2">3</span>Schedule Configuration</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="schedulePreset" class="form-label fw-semibold">Frequency</label>
+          <select class="form-select" id="schedulePreset">
+            <option value="0 0 9 * * ?" selected>Daily (every day at 9:00 AM UTC)</option>
+            <option value="0 0 9 ? * MON">Weekly (every Monday at 9:00 AM UTC)</option>
+            <option value="0 0 9 1 * ?">Monthly (1st of each month at 9:00 AM UTC)</option>
+            <option value="custom">Custom CRON...</option>
+          </select>
+        </div>
+        <div class="col-md-6" id="customCronWrapper" style="display:none;">
+          <label for="cronExpression" class="form-label fw-semibold">Custom CRON Expression (Quartz)</label>
+          <input type="text" class="form-control" id="cronExpression" placeholder="0 0 9 * * ?">
+          <div class="form-text"><code>seconds minutes hours day-of-month month day-of-week</code></div>
+        </div>
+      </div>
+      <div class="mt-3 p-3 bg-light rounded">
+        <small class="text-muted">
+          <strong>Job name:</strong> auto-generated as <code>METR-COMPUTE-&lt;hash&gt;</code><br>
+          <strong>Timezone:</strong> UTC
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Deploy -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold" id="step4Title"><span class="badge bg-danger me-2">4</span>Deploy Scheduled Job</h5>
+      <button class="btn btn-danger btn-sm" id="btnSchedule" disabled>
+        <i class="bi bi-calendar-check me-1"></i>Schedule
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="scheduleResult">
+        <p class="text-muted text-center" id="step4Placeholder"><i class="bi bi-calendar-event me-2"></i>Build a plan and configure CRON, then deploy.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const state = {
+    metrics: [],       // all metrics from DB
+    assigned: new Set(), // metric names already in a job
+    selected: new Set(),
+    plan: null,
+    hierarchy: {},     // metric -> [dependencies]
+    autoAssignJob: null, // {job_id, job_info} if auto-assign detected
+  };
+
+  const $snapshotDate = document.getElementById('snapshotDate');
+  const $btnRefresh = document.getElementById('btnRefreshMetrics');
+  const $btnBuild = document.getElementById('btnBuildPlan');
+  const $btnSchedule = document.getElementById('btnSchedule');
+  const $btnSelectAll = document.getElementById('btnSelectAll');
+  const $btnClearAll = document.getElementById('btnClearAll');
+  const $metricSearch = document.getElementById('metricSearch');
+  const $metricsContainer = document.getElementById('metricsContainer');
+  const $selectedCount = document.getElementById('selectedCount');
+  const $planContainer = document.getElementById('planContainer');
+  const $scheduleResult = document.getElementById('scheduleResult');
+  const $cronExpression = document.getElementById('cronExpression');
+  const $schedulePreset = document.getElementById('schedulePreset');
+  const $customCronWrapper = document.getElementById('customCronWrapper');
+  const $scheduleConfig = document.getElementById('scheduleConfigCard');
+
+  // Set default date to today
+  $snapshotDate.value = new Date().toISOString().split('T')[0];
+
+  // ── Preset/Custom toggle ─────────────────────────────────────────────────
+  $schedulePreset.addEventListener('change', function() {
+    if (this.value === 'custom') {
+      $customCronWrapper.style.display = '';
+      $cronExpression.focus();
+    } else {
+      $customCronWrapper.style.display = 'none';
+    }
+  });
+
+  // ── Load Hierarchy ───────────────────────────────────────────────────────
+  async function loadHierarchy() {
+    try {
+      const resp = await fetch('/api/hierarchy');
+      const data = await resp.json();
+      if (data.success && data.data) {
+        const h = {};
+        data.data.forEach(row => {
+          const metric = (row.METRIC_NAME || row.metric_name || '').toLowerCase();
+          const dep = (row.DEPENDENCY || row.dependency_name || '').toLowerCase();
+          if (metric && dep) {
+            if (!h[metric]) h[metric] = [];
+            h[metric].push(dep);
+          }
+        });
+        state.hierarchy = h;
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  // ── Load Assigned Metrics ────────────────────────────────────────────────
+  async function loadAssigned() {
+    try {
+      const resp = await fetch('/api/registry/unassigned');
+      const data = await resp.json();
+      if (data.success) {
+        state.assigned = new Set((data.assigned || []).map(n => n.toLowerCase()));
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  // ── Load Metrics (only unassigned) ───────────────────────────────────────
+  async function loadMetrics() {
+    $metricsContainer.innerHTML = '<p class="text-muted text-center my-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading metrics...</p>';
+    $metricSearch.disabled = true;
+    $btnSelectAll.disabled = true;
+    $btnClearAll.disabled = true;
+    if ($btnRefresh) { $btnRefresh.disabled = true; $btnRefresh.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+
+    try {
+      const resp = await fetch('/api/metrics/all');
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load metrics');
+
+      // Filter out already-assigned metrics
+      state.metrics = data.data.filter(m => {
+        const name = (m.metric_name || '').toLowerCase();
+        return !state.assigned.has(name);
+      });
+
+      if (state.metrics.length === 0) {
+        $metricsContainer.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-check-circle me-2"></i>All metrics are already assigned to scheduled jobs. Go to <a href="/schedules">Manage Schedules</a> to view them.</div>';
+      } else {
+        renderMetrics(state.metrics);
+      }
+      $metricSearch.disabled = false;
+      $btnSelectAll.disabled = false;
+      $btnClearAll.disabled = false;
+    } catch (err) {
+      $metricsContainer.innerHTML = `<div class="alert alert-danger mb-0">${err.message}</div>`;
+    } finally {
+      if ($btnRefresh) { $btnRefresh.disabled = false; $btnRefresh.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }
+    }
+  }
+
+  async function init() {
+    await loadHierarchy();
+    await loadAssigned();
+    await loadMetrics();
+  }
+  init();
+  if ($btnRefresh) $btnRefresh.addEventListener('click', () => { loadAssigned().then(loadMetrics); });
+
+  // ── Search Filter ────────────────────────────────────────────────────────
+  $metricSearch.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    const filtered = state.metrics.filter(m =>
+      (m.metric_name || '').toLowerCase().includes(q)
+    );
+    renderMetrics(filtered);
+  });
+
+  // ── Select All / Clear All ───────────────────────────────────────────────
+  $btnSelectAll.addEventListener('click', function() {
+    state.metrics.forEach(m => state.selected.add(m.metric_name));
+    renderMetrics(state.metrics);
+    updateSelectedCount();
+  });
+
+  $btnClearAll.addEventListener('click', function() {
+    state.selected.clear();
+    renderMetrics(state.metrics);
+    updateSelectedCount();
+  });
+
+  // ── Build Plan ───────────────────────────────────────────────────────────
+  $btnBuild.addEventListener('click', async function() {
+    const snapshotDate = $snapshotDate.value;
+    if (!snapshotDate) { alert('Please select a snapshot date.'); return; }
+    if (state.selected.size === 0) { alert('Please select at least one metric.'); return; }
+
+    $btnBuild.disabled = true;
+    $btnBuild.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Building...';
+
+    try {
+      const resp = await fetch('/api/build-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metrics: Array.from(state.selected),
+          snapshot_date: snapshotDate,
+        }),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Failed to build plan');
+
+      state.plan = data;
+      renderPlan(data);
+
+      // Check if any dependency is already in an existing job → auto-assign
+      await checkAutoAssign(data);
+
+      $btnSchedule.disabled = false;
+    } catch (err) {
+      $planContainer.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    } finally {
+      $btnBuild.disabled = false;
+      $btnBuild.innerHTML = '<i class="bi bi-diagram-3 me-1"></i>Build Plan';
+    }
+  });
+
+  // ── Check Auto-Assign ────────────────────────────────────────────────────
+  async function checkAutoAssign(planData) {
+    // Collect all dependencies from the plan that are in the assigned set
+    const allDeps = [];
+    const allMetrics = [];
+    planData.plan.forEach(level => {
+      level.metrics.forEach(m => {
+        const name = (typeof m === 'object') ? m.name : m;
+        allMetrics.push(name);
+        const deps = (typeof m === 'object' && m.dependencies) ? m.dependencies : [];
+        deps.forEach(d => {
+          if (state.assigned.has(d.toLowerCase())) {
+            allDeps.push(d);
+          }
+        });
+      });
+    });
+
+    if (allDeps.length === 0 && allMetrics.length === 0) {
+      state.autoAssignJob = null;
+      $scheduleConfig.style.display = '';
+      return;
+    }
+
+    // Check which job owns the dependency (forward + reverse)
+    try {
+      const resp = await fetch('/api/registry/job-for-dep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependencies: allDeps, metrics: allMetrics }),
+      });
+      const data = await resp.json();
+      if (data.success && data.found) {
+        state.autoAssignJob = { job_id: data.job_id, job_info: data.job_info };
+        // Hide schedule config - will be added to existing job
+        $scheduleConfig.style.display = 'none';
+        // Update step 4 to reflect update action
+        $btnSchedule.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Update Job';
+        document.getElementById('step4Title').innerHTML = '<span class="badge bg-danger me-2">4</span>Update Existing Job';
+        document.getElementById('step4Placeholder').innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>Metrics will be added to an existing job.';
+        const direction = data.direction === 'reverse'
+          ? 'Metrics in this job depend on your selection'
+          : 'Dependencies are already in this job';
+        $planContainer.innerHTML += `
+          <div class="alert alert-warning mt-3">
+            <i class="bi bi-link-45deg me-2"></i>
+            <strong>Auto-assign detected:</strong> ${direction} — job <code>${data.job_info.job_name || data.job_id}</code>.
+            These metrics will be added to that existing job (no new schedule needed).
+          </div>`;
+      } else {
+        state.autoAssignJob = null;
+        $scheduleConfig.style.display = '';
+        $btnSchedule.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Schedule';
+        document.getElementById('step4Title').innerHTML = '<span class="badge bg-danger me-2">4</span>Deploy Scheduled Job';
+        document.getElementById('step4Placeholder').innerHTML = '<i class="bi bi-calendar-event me-2"></i>Build a plan and configure CRON, then deploy.';
+      }
+    } catch (e) {
+      state.autoAssignJob = null;
+      $scheduleConfig.style.display = '';
+      $btnSchedule.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Schedule';
+      document.getElementById('step4Title').innerHTML = '<span class="badge bg-danger me-2">4</span>Deploy Scheduled Job';
+      document.getElementById('step4Placeholder').innerHTML = '<i class="bi bi-calendar-event me-2"></i>Build a plan and configure CRON, then deploy.';
+    }
+  }
+
+  // ── Schedule Job ─────────────────────────────────────────────────────────
+  $btnSchedule.addEventListener('click', async function() {
+    if (!state.plan) { alert('Build a plan first.'); return; }
+
+    let body;
+    if (state.autoAssignJob) {
+      // Auto-assign mode: add to existing job
+      if (!confirm(`Add ${state.plan.total_metrics} metric(s) to existing job "${state.autoAssignJob.job_info.job_name || state.autoAssignJob.job_id}"?`)) return;
+      body = {
+        plan: state.plan.plan,
+        snapshot_date: state.plan.snapshot_date,
+        mode: 'add_to_job',
+        target_job_id: state.autoAssignJob.job_id,
+      };
+    } else {
+      // New job mode
+      const presetVal = $schedulePreset.value;
+      const cronExpr = presetVal === 'custom' ? $cronExpression.value.trim() : presetVal;
+      if (!cronExpr) { alert('Please enter a CRON expression.'); return; }
+      if (!confirm(`Deploy new scheduled job with CRON "${cronExpr}" (UTC) for ${state.plan.total_metrics} metrics?`)) return;
+      body = {
+        plan: state.plan.plan,
+        snapshot_date: state.plan.snapshot_date,
+        mode: 'new',
+        cron_expression: cronExpr,
+        timezone: 'UTC',
+      };
+    }
+
+    $btnSchedule.disabled = true;
+    $btnSchedule.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Deploying...';
+
+    try {
+      const resp = await fetch('/api/schedule-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Failed to schedule job');
+
+      $scheduleResult.innerHTML = `
+        <div class="alert alert-success">
+          <h5 class="fw-bold"><i class="bi bi-check-circle-fill me-2"></i>${state.autoAssignJob ? 'Metrics Added to Job' : 'Scheduled Job Created'}</h5>
+          <p class="mb-2">${data.message}</p>
+          <p class="mb-0">Job ID: <strong>${data.job_id}</strong> ${data.job_name ? `(<code>${data.job_name}</code>)` : ''}</p>
+          ${data.job_url ? `<a href="${data.job_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Job on Databricks</a>` : ''}
+        </div>
+      `;
+      // Refresh assigned list
+      await loadAssigned();
+      await loadMetrics();
+    } catch (err) {
+      $scheduleResult.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    } finally {
+      $btnSchedule.disabled = false;
+      $btnSchedule.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Schedule';
+    }
+  });
+
+  // ── Render Helpers ───────────────────────────────────────────────────────
+  function renderMetrics(metrics) {
+    if (!metrics.length) {
+      $metricsContainer.innerHTML = '<p class="text-muted text-center my-4">No unassigned metrics found.</p>';
+      return;
+    }
+
+    let html = '<div class="list-group list-group-flush">';
+    metrics.forEach(m => {
+      const name = m.metric_name || m.name || Object.values(m)[0] || '';
+      const extType = m.EXTRACTION_TYPE || m.extraction_type || '';
+      const deps = state.hierarchy[name.toLowerCase()] || [];
+      const isSelected = state.selected.has(name);
+      const badgeClass = extType.toUpperCase() === 'SNAPSHOT' ? 'bg-primary' : 'bg-secondary';
+      html += `
+        <div class="list-group-item list-group-item-action d-flex align-items-center gap-3 ${isSelected ? 'list-group-item-success' : ''}" style="cursor:pointer;" data-metric="${name}">
+          <input type="checkbox" class="form-check-input flex-shrink-0" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2">
+              <strong>${name}</strong>
+              <span class="badge ${badgeClass} badge-sm">${extType || '?'}</span>
+            </div>
+            ${deps.length ? `<small class="text-muted">depends on: ${deps.map(d => {
+              const inJob = state.assigned.has(d.toLowerCase());
+              return inJob ? `<code class="text-success" title="Already in a job">${d} ✓</code>` : `<code>${d}</code>`;
+            }).join(', ')}</small>` : ''}
+          </div>
+        </div>`;
+    });
+    html += '</div>';
+    $metricsContainer.innerHTML = html;
+
+    $metricsContainer.querySelectorAll('[data-metric]').forEach(el => {
+      el.addEventListener('click', function() {
+        const metric = this.dataset.metric;
+        const checkbox = this.querySelector('input[type="checkbox"]');
+        if (state.selected.has(metric)) {
+          state.selected.delete(metric);
+          this.classList.remove('list-group-item-success');
+          checkbox.checked = false;
+        } else {
+          state.selected.add(metric);
+          this.classList.add('list-group-item-success');
+          checkbox.checked = true;
+        }
+        updateSelectedCount();
+      });
+    });
+
+    $metricsContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const metric = this.closest('[data-metric]').dataset.metric;
+        if (this.checked) {
+          state.selected.add(metric);
+          this.closest('[data-metric]').classList.add('list-group-item-success');
+        } else {
+          state.selected.delete(metric);
+          this.closest('[data-metric]').classList.remove('list-group-item-success');
+        }
+        updateSelectedCount();
+      });
+    });
+  }
+
+  function updateSelectedCount() {
+    $selectedCount.textContent = state.selected.size;
+    $btnBuild.disabled = state.selected.size === 0;
+    state.plan = null;
+    state.autoAssignJob = null;
+    $btnSchedule.disabled = true;
+    $scheduleConfig.style.display = '';
+
+    // Disable date picker if no SNAPSHOT metric is selected
+    const hasSnapshot = Array.from(state.selected).some(name => {
+      const m = state.metrics.find(x => (x.metric_name || x.name || '') === name);
+      const ext = m ? (m.EXTRACTION_TYPE || m.extraction_type || '') : '';
+      return ext.toUpperCase() === 'SNAPSHOT';
+    });
+    $snapshotDate.disabled = !hasSnapshot;
+    if (!hasSnapshot) {
+      $snapshotDate.value = new Date().toISOString().split('T')[0];
+    }
+  }
+
+  function renderPlan(data) {
+    let html = `
+      <div class="alert alert-info mb-3">
+        <strong>Plan Summary:</strong> ${data.total_metrics} metric(s) across ${data.plan.length} level(s) for snapshot <strong>${data.snapshot_date}</strong>
+      </div>`;
+
+    data.plan.forEach(level => {
+      html += `
+        <div class="mb-3 ps-3" style="border-left:3px solid #0d6efd;">
+          <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge bg-primary">${level.metrics.length}</span></h6>
+          <div class="d-flex flex-wrap gap-2">
+            ${level.metrics.map(m => {
+              const name = typeof m === 'object' ? m.name : m;
+              const ext = (typeof m === 'object' && m.extraction_type) ? m.extraction_type : '';
+              const badgeCls = ext.toUpperCase() === 'SNAPSHOT' ? 'bg-primary' : 'bg-secondary';
+              return `<span class="badge bg-light text-dark border">${name} <span class="badge ${badgeCls} ms-1" style="font-size:0.6em">${ext}</span></span>`;
+            }).join('')}
+          </div>
+        </div>`;
+    });
+
+    $planContainer.innerHTML = html;
+  }
+})();
+</script>
+{% endblock extra_js %}

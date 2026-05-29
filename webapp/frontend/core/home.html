@@ -1,0 +1,197 @@
+{% extends 'core/page_layout.html' %}
+{% block content %}
+
+<!-- Hero Section -->
+<section class="py-5" style="background: linear-gradient(135deg, #008051 0%, #95b849 100%); color: white;">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-lg-8">
+        <h1 class="display-4 fw-bold mb-3">Metrics Materializer</h1>
+        <p class="lead mb-4 fw-bold text-dark">
+          Materialize metric tables in Databricks for a specific snapshot date.
+          Select the metrics you need, review the dependency tree, and run or schedule jobs.
+        </p>
+        <div class="d-flex gap-3 flex-wrap">
+          <a href="{{ url_for('core.materialize') }}" class="btn btn-warning btn-lg fw-bold">
+            <i class="bi bi-play-circle-fill me-2"></i>One-Time Run
+          </a>
+          <a href="{{ url_for('core.schedule') }}" class="btn btn-light btn-lg fw-bold">
+            <i class="bi bi-calendar-event me-2"></i>Schedule
+          </a>
+          <a href="{{ url_for('core.schedules') }}" class="btn btn-outline-light btn-lg fw-bold">
+            <i class="bi bi-gear me-2"></i>Manage Schedules
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works Section -->
+<section class="py-5">
+  <div class="container">
+    <h2 class="text-center mb-5 fw-bold">How It Works</h2>
+
+    <!-- Two modes explanation -->
+    <div class="row g-4 mb-5">
+      <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-warning">
+          <div class="card-header bg-warning bg-opacity-10 fw-bold">
+            <i class="bi bi-play-circle-fill me-2 text-warning"></i>One-Time Run (Ephemeral)
+          </div>
+          <div class="card-body">
+            <p class="card-text text-muted">
+              Submit a one-shot job that runs immediately and disappears after completion.
+              Ideal for ad-hoc materializations, testing, or backfilling specific dates.
+            </p>
+            <ul class="list-unstyled text-muted small">
+              <li><i class="bi bi-check text-success me-1"></i>Runs immediately</li>
+              <li><i class="bi bi-check text-success me-1"></i>No persistent job definition</li>
+              <li><i class="bi bi-check text-success me-1"></i>Full dependency resolution</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-danger">
+          <div class="card-header bg-danger bg-opacity-10 fw-bold">
+            <i class="bi bi-calendar-event me-2 text-danger"></i>Scheduled (Persistent)
+          </div>
+          <div class="card-body">
+            <p class="card-text text-muted">
+              Deploy a persistent job with a CRON schedule. The job runs automatically
+              at the configured interval and persists in the workspace.
+            </p>
+            <ul class="list-unstyled text-muted small">
+              <li><i class="bi bi-check text-success me-1"></i>CRON-based scheduling</li>
+              <li><i class="bi bi-check text-success me-1"></i>Persistent job in Databricks</li>
+              <li><i class="bi bi-check text-success me-1"></i>Same dependency logic</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="row g-4">
+      <!-- Step 1 -->
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="mb-3">
+              <span class="badge bg-primary">1</span>
+            </div>
+            <h5 class="card-title fw-bold">Select Metrics</h5>
+            <p class="card-text text-muted">
+              Browse available metrics from <code>p_ind_core_mtrcs.metadata.metrics</code> and pick which ones to materialize.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="mb-3">
+              <span class="badge bg-info">2</span>
+            </div>
+            <h5 class="card-title fw-bold">Dependency Tree</h5>
+            <p class="card-text text-muted">
+              Automatically resolves dependencies from <code>metrics_hierarchy</code> and builds a level-ordered execution plan.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="mb-3">
+              <span class="badge bg-success">3</span>
+            </div>
+            <h5 class="card-title fw-bold">Run or Schedule</h5>
+            <p class="card-text text-muted">
+              Submit an immediate one-time run, or deploy a persistent scheduled job with CRON to Databricks.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Last Materialization Status -->
+<section class="py-5 bg-light">
+  <div class="container">
+    <h2 class="text-center mb-4 fw-bold">Last Materialization Status</h2>
+    <p class="text-center text-muted mb-4">Most recent completed materialization per metric from <code>metrics_status_transitions</code></p>
+    <div id="statusContainer">
+      <p class="text-muted text-center my-4">
+        <span class="spinner-border spinner-border-sm me-2"></span>Loading status...
+      </p>
+    </div>
+  </div>
+</section>
+
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const $container = document.getElementById('statusContainer');
+
+  async function loadStatus() {
+    try {
+      const resp = await fetch('/api/metrics-status');
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load status');
+
+      if (!data.data || data.data.length === 0) {
+        $container.innerHTML = '<p class="text-muted text-center">No materialization records found.</p>';
+        return;
+      }
+
+      let html = `
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle">
+            <thead class="table-dark">
+              <tr>
+                <th>Metric</th>
+                <th>Snapshot Date</th>
+                <th>Completed At</th>
+                <th>Job</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+      data.data.forEach(row => {
+        const ts = row.TIMESTAMP ? new Date(row.TIMESTAMP).toLocaleString() : '-';
+        const wsUrl = row.WORKSPACE_URL || '';
+        const jobId = row.JOB_ID || '';
+        const runId = row.JOB_RUN_ID || '';
+        const jobUrl = wsUrl && runId ? `${wsUrl}#job/${jobId}/run/${runId}` : '';
+
+        html += `
+          <tr>
+            <td><strong>${row.METRIC_NAME || '-'}</strong></td>
+            <td>${row.DATA_SNAPSHOT || '-'}</td>
+            <td><small>${ts}</small></td>
+            <td><small class="text-muted">${row.JOB_NAME || '-'}</small></td>
+            <td>${jobUrl ? `<a href="${jobUrl}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td>
+          </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      $container.innerHTML = html;
+    } catch (err) {
+      $container.innerHTML = `<div class="alert alert-warning">${err.message}</div>`;
+    }
+  }
+
+  loadStatus();
+})();
+</script>
+{% endblock extra_js %}

@@ -1,0 +1,6 @@
+# Python >= 3.11
+
+databricks-sdk>=0.33
+databricks-sql-connector>=3.4.0
+Flask>=3.0.3
+python-dotenv

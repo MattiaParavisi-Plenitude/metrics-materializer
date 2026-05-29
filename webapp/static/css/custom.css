@@ -1,0 +1,464 @@
+/* ==========================================
+   PLENITUDE METRICS MATERIALIZER THEME
+   ========================================== */
+
+:root {
+    /* Plenitude Brand Colors */
+    --pln-green-primary: #008051;
+    --pln-green-primary-rgb: 0, 128, 81;
+    --pln-green-primary-alt: #009e62;
+    --pln-green-light: #95b849;
+    --pln-green-light-rgb: 149, 184, 73;
+    --pln-yellow-eni: #ffcd00;
+    --pln-yellow-eni-rgb: 255, 220, 0;
+
+    /* Text Colors */
+    --pln-text-dark: #333333;
+    --pln-text-grey: #666666;
+    --pln-text-light: #999999;
+
+    /* Background Colors */
+    --pln-bg-white: #ffffff;
+    --pln-bg-grey: #f4f4f4;
+    --pln-bg-beige: #faf8f5;
+
+    /* Gradients */
+    --pln-gradient-3: linear-gradient(135deg, var(--pln-green-primary) 0%, var(--pln-green-light) 100%);
+    --pln-gradient-spectrum: linear-gradient(90deg, var(--pln-green-primary) 0%, var(--pln-green-primary-alt) 20%, var(--pln-green-light) 70%, var(--pln-yellow-eni) 100%);
+
+    /* Shadows */
+    --pln-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+    --pln-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --pln-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+    /* Border Radius */
+    --pln-radius-sm: 4px;
+    --pln-radius-md: 8px;
+    --pln-radius-lg: 16px;
+}
+
+/* ==========================================
+   BASE
+   ========================================== */
+
+body {
+    font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--pln-text-dark);
+    background-color: var(--pln-bg-beige);
+    line-height: 1.6;
+}
+
+.lead {
+    font-size: 1.25rem;
+    font-weight: 300;
+    color: var(--pln-text-grey);
+}
+
+/* ==========================================
+   NAVBAR
+   ========================================== */
+
+.navbar-pln {
+    background: var(--pln-gradient-3) !important;
+    box-shadow: var(--pln-shadow-sm);
+    padding: 0.75rem 0;
+}
+
+.navbar-pln .navbar-brand {
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: 0.3px;
+}
+
+.navbar-pln .nav-link {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.5rem 1rem !important;
+    border-radius: var(--pln-radius-sm);
+    transition: all 0.2s ease;
+}
+
+.navbar-pln .nav-link:hover {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-pln .nav-link.active {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.15);
+    position: relative;
+    opacity: 1;
+}
+
+/* Ensure standard Bootstrap navbar nav-links don't look disabled */
+.navbar-dark .nav-link {
+    color: rgba(255, 255, 255, 0.95) !important;
+    transition: color 0.2s ease;
+}
+
+.navbar-dark .nav-link:hover {
+    color: #ffffff !important;
+}
+
+.navbar-dark .nav-link.active {
+    color: #ffffff !important;
+    font-weight: 600;
+    opacity: 1;
+}
+
+.navbar-pln .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 1rem;
+    right: 1rem;
+    height: 3px;
+    background-color: var(--pln-yellow-eni);
+    border-radius: 2px;
+}
+
+.navbar-pln .navbar-text {
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 0.85rem;
+}
+
+/* ==========================================
+   HERO SECTION
+   ========================================== */
+
+.hero-section {
+    background: var(--pln-gradient-3);
+    color: #ffffff;
+    padding: 4rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+.hero-section h1 {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.hero-section .lead {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.hero-section .btn-pln-yellow {
+    background-color: var(--pln-yellow-eni);
+    border-color: var(--pln-yellow-eni);
+    color: var(--pln-text-dark);
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border-radius: var(--pln-radius-sm);
+    transition: all 0.3s ease;
+}
+
+.hero-section .btn-pln-yellow:hover {
+    background-color: #e6c700;
+    border-color: #e6c700;
+    box-shadow: var(--pln-shadow-md);
+    transform: translateY(-1px);
+}
+
+/* ==========================================
+   CARDS
+   ========================================== */
+
+.card {
+    border: none;
+    border-radius: var(--pln-radius-md);
+    box-shadow: var(--pln-shadow-sm);
+    transition: all 0.3s ease;
+    overflow: hidden;
+    background: var(--pln-bg-white);
+}
+
+.card:hover {
+    box-shadow: var(--pln-shadow-md);
+}
+
+.card-plenitude {
+    position: relative;
+    padding-bottom: 4px;
+}
+
+.card-plenitude::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--pln-gradient-spectrum);
+    border-radius: 0 0 var(--pln-radius-md) var(--pln-radius-md);
+}
+
+.card-header {
+    background-color: var(--pln-bg-white);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 1.25rem 1.5rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* ==========================================
+   BUTTONS
+   ========================================== */
+
+.btn {
+    font-weight: 600;
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--pln-radius-sm);
+    transition: all 0.3s ease;
+    letter-spacing: 0.3px;
+}
+
+.btn-pln-green {
+    background-color: var(--pln-green-primary);
+    border-color: var(--pln-green-primary);
+    color: #ffffff;
+}
+
+.btn-pln-green:hover,
+.btn-pln-green:focus {
+    background-color: var(--pln-green-primary-alt);
+    border-color: var(--pln-green-primary-alt);
+    color: #ffffff;
+    box-shadow: var(--pln-shadow-md);
+    transform: translateY(-1px);
+}
+
+.btn-pln-yellow {
+    background-color: var(--pln-yellow-eni);
+    border-color: var(--pln-yellow-eni);
+    color: var(--pln-text-dark);
+    font-weight: 700;
+}
+
+.btn-pln-yellow:hover,
+.btn-pln-yellow:focus {
+    background-color: #e6c700;
+    border-color: #e6c700;
+    color: var(--pln-text-dark);
+    box-shadow: var(--pln-shadow-md);
+}
+
+.btn-outline-pln-green {
+    border-color: var(--pln-green-primary);
+    color: var(--pln-green-primary);
+    background-color: transparent;
+}
+
+.btn-outline-pln-green:hover,
+.btn-outline-pln-green:focus {
+    background-color: var(--pln-green-primary);
+    border-color: var(--pln-green-primary);
+    color: #ffffff;
+}
+
+/* ==========================================
+   FORM CONTROLS
+   ========================================== */
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--pln-green-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--pln-green-primary-rgb), 0.15);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--pln-text-dark);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* ==========================================
+   METRICS LIST
+   ========================================== */
+
+.metric-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    padding: 0.75rem 1rem;
+}
+
+.metric-item:hover {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.04);
+    border-left-color: rgba(var(--pln-green-primary-rgb), 0.3);
+}
+
+.metric-item.selected {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.08) !important;
+    border-left-color: var(--pln-green-primary) !important;
+}
+
+.metric-item .form-check-input:checked {
+    background-color: var(--pln-green-primary);
+    border-color: var(--pln-green-primary);
+}
+
+/* ==========================================
+   EXECUTION PLAN
+   ========================================== */
+
+.level-group {
+    border-left: 3px solid var(--pln-green-primary);
+    padding-left: 1.25rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+}
+
+.level-group h6 {
+    color: var(--pln-green-primary);
+    font-weight: 700;
+}
+
+.level-badge {
+    font-size: 0.7rem;
+    background-color: var(--pln-green-primary) !important;
+}
+
+.metric-badge {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.08);
+    color: var(--pln-green-primary);
+    border: 1px solid rgba(var(--pln-green-primary-rgb), 0.2);
+    font-weight: 500;
+    padding: 0.35em 0.75em;
+    border-radius: var(--pln-radius-sm);
+}
+
+/* ==========================================
+   ALERTS
+   ========================================== */
+
+.alert-pln-green {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.08);
+    color: var(--pln-green-primary);
+    border: none;
+    border-left: 4px solid var(--pln-green-primary);
+    border-radius: var(--pln-radius-sm);
+}
+
+.alert-pln-info {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.05);
+    color: var(--pln-text-dark);
+    border: none;
+    border-left: 4px solid var(--pln-green-light);
+    border-radius: var(--pln-radius-sm);
+}
+
+/* ==========================================
+   FEATURE CARDS (HOME)
+   ========================================== */
+
+.feature-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1.5rem;
+}
+
+.feature-icon-green {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.1);
+    color: var(--pln-green-primary);
+}
+
+.feature-icon-yellow {
+    background-color: rgba(var(--pln-yellow-eni-rgb), 0.15);
+    color: #b8960a;
+}
+
+.feature-icon-light-green {
+    background-color: rgba(var(--pln-green-light-rgb), 0.15);
+    color: #6a8c2e;
+}
+
+/* ==========================================
+   STEP INDICATORS
+   ========================================== */
+
+.step-number {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: var(--pln-green-primary);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.875rem;
+    margin-right: 0.75rem;
+}
+
+/* ==========================================
+   FOOTER
+   ========================================== */
+
+.footer-pln {
+    background: var(--pln-gradient-3);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 1.5rem 0;
+    margin-top: 3rem;
+}
+
+/* ==========================================
+   SPINNER / LOADING
+   ========================================== */
+
+.spinner-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: var(--pln-radius-md);
+}
+
+.spinner-border {
+    color: var(--pln-green-primary) !important;
+}
+
+/* ==========================================
+   MISC
+   ========================================== */
+
+code {
+    background-color: rgba(var(--pln-green-primary-rgb), 0.06);
+    color: var(--pln-green-primary);
+    padding: 0.15em 0.4em;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.text-pln-green { color: var(--pln-green-primary) !important; }
+
+hr {
+    border-color: rgba(var(--pln-green-primary-rgb), 0.1);
+}
+
