@@ -5,6 +5,7 @@ from functools import lru_cache
 from typing import Any, Optional
 
 from flask import current_app, has_request_context, request
+from db_connector import get_workspace_client
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
@@ -31,8 +32,7 @@ def get_user_email() -> str:
 def _get_databricks_display_name() -> str:
     """Fetch the current user's display name from Databricks (cached for process lifetime)."""
     try:
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
+        w = get_workspace_client()
         me = w.current_user.me()
         # Prefer formatted name (First Last), fall back to display_name, then userName
         if me.name and (me.name.given_name or me.name.family_name):

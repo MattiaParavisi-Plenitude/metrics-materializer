@@ -30,7 +30,7 @@ _lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(_base_d
 if _lib_path not in sys.path:
     sys.path.insert(0, _lib_path)
 
-from db_connector import execute_query
+from db_connector import execute_query, get_workspace_client
 import schedule_registry as registry
 
 blueprint = Blueprint("core", __name__)
@@ -246,7 +246,7 @@ def api_submit_job():
         if not submit_tasks:
             return jsonify({"success": False, "error": "No tasks generated from plan"}), 400
 
-        w = WorkspaceClient()
+        w = get_workspace_client()
         waiter = w.jobs.submit(
             run_name=f"METRICS_MATERIALIZE_{snapshot_date}",
             tasks=submit_tasks,
@@ -746,7 +746,7 @@ def api_registry_remove_metric():
 
 def _get_workspace_client() -> WorkspaceClient:
     """Create and return a WorkspaceClient (cached per-request if needed)."""
-    return WorkspaceClient()
+    return get_workspace_client()
 
 
 def _compute_levels(metrics: set, deps_map: dict) -> dict:

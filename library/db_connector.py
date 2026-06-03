@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 
 from databricks.sdk import WorkspaceClient, config
 from databricks.sdk.service import sql as sql_service
@@ -23,11 +24,34 @@ def _get_warehouse_id():
 
 
 def _get_config():
+    # Prefer explicit env/app credentials, then local databricks.cfg for local runs.
+    host = (os.getenv("DATABRICKS_HOST", "") or "").strip()
+    token = (os.getenv("DATABRICKS_TOKEN", "") or "").strip()
+
+    if not host or not token:
+        try:
+            from config import Config
+            host = host or (getattr(Config, "DATABRICKS_HOST", "") or "").strip()
+            token = token or (getattr(Config, "DATABRICKS_TOKEN", "") or "").strip()
+        except Exception:
+            pass
+
+    if host and token:
+        return config.Config(host=host, token=token)
+
+    local_cfg = Path(__file__).resolve().parent.parent / "databricks.cfg"
+    if local_cfg.exists() and not os.getenv("DATABRICKS_CONFIG_FILE"):
+        os.environ["DATABRICKS_CONFIG_FILE"] = str(local_cfg)
+
     return config.Config()
 
 
 def _get_workspace_client():
     return WorkspaceClient(config=_get_config())
+
+
+def get_workspace_client():
+    return _get_workspace_client()
 
 
 def _get_status_value(response):
