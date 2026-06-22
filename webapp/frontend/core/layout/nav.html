@@ -1,37 +1,50 @@
-<nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #008051 0%, #95b849 100%);">
-  <div class="container-fluid px-4">
-    <a class="navbar-brand fw-bold" href="{{ url_for('core.home') }}">
-      <i class="bi bi-diagram-3 me-2"></i>Metrics Materializer
-    </a>
-    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item">
-          <a class="nav-link {% if active_page == 'home' %}active{% endif %}" href="{{ url_for('core.home') }}">
-            <i class="bi bi-house-fill me-1"></i>Home
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if active_page == 'materialize' %}active{% endif %}" href="{{ url_for('core.materialize') }}">
-            <i class="bi bi-play-circle-fill me-1"></i>Materialize
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if active_page == 'schedule' %}active{% endif %}" href="{{ url_for('core.schedule') }}">
-            <i class="bi bi-calendar-event me-1"></i>Schedule
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if active_page == 'schedules' %}active{% endif %}" href="{{ url_for('core.schedules') }}">
-            <i class="bi bi-gear me-1"></i>Manage
-          </a>
-        </li>
-        <li class="nav-item">
-          <span class="nav-link text-white"><i class="bi bi-person-circle me-1"></i>{{ with_utente or 'Guest' }}</span>
-        </li>
-      </ul>
+<header class="navbar-pln sticky-top">
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="{{ url_for('core.home') }}">
+        <i class="bi bi-diagram-3 me-2"></i>Metrics Materializer
+      </a>
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto align-items-lg-center">
+          <li class="nav-item">
+            <a class="nav-link {% if active_page == 'home' %}active{% endif %}" href="{{ url_for('core.home') }}">
+              <i class="bi bi-house-fill me-1"></i>Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if active_page == 'materialize' %}active{% endif %}" href="{{ url_for('core.materialize') }}">
+              <i class="bi bi-play-circle-fill me-1"></i>Materialize
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if active_page == 'schedule' %}active{% endif %}" href="{{ url_for('core.schedule') }}">
+              <i class="bi bi-calendar-event me-1"></i>Schedule
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if active_page == 'schedules' %}active{% endif %}" href="{{ url_for('core.schedules') }}">
+              <i class="bi bi-gear me-1"></i>Manage
+            </a>
+          </li>
+
+          <!-- User avatar dropdown -->
+          <li class="nav-item dropdown ms-lg-3">
+            <a class="user-avatar" href="#" id="userDropdown" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false" title="{{ with_utente or 'Guest' }}">
+              {{ (with_utente[:2] | upper) if with_utente else 'GT' }}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="userDropdown">
+              <li><h6 class="dropdown-header">{{ with_utente or 'Guest' }}</h6></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><span class="dropdown-item disabled"><i class="bi bi-person me-2"></i>Profile</span></li>
+              <li><span class="dropdown-item disabled"><i class="bi bi-box-arrow-right me-2"></i>Logout</span></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
     </div>
-  </div>
-</nav>
+  </nav>
+</header>
