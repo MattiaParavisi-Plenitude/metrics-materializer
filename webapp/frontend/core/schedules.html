@@ -163,8 +163,8 @@
             const willDelete = preview.will_delete_job;
 
             // Step 2: Show detailed confirmation
-            let confirmHtml = `<p>Removing <strong>"${metric}"</strong> will also remove the following metrics (dependencies + dependents):</p><ul class="mb-2">`;
-            confirmHtml += removeList.map(m => `<li><code>${m}</code></li>`).join('');
+            let confirmHtml = `<p>Removing <strong>"${escapeHtml(metric)}"</strong> will also remove the following metrics (dependencies + dependents):</p><ul class="mb-2">`;
+            confirmHtml += removeList.map(m => `<li><code>${escapeHtml(m)}</code></li>`).join('');
             confirmHtml += '</ul>';
             if (willDelete) {
               confirmHtml += '<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>This will <strong>DELETE the entire job</strong> (no metrics left).</div>';

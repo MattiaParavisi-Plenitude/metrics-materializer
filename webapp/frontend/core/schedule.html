@@ -351,7 +351,7 @@
     let body;
     if (state.autoAssignJob) {
       // Auto-assign mode: add to existing job
-      if (!await showConfirm(`Add <strong>${state.plan.total_metrics}</strong> metric(s) to existing job <code>${state.autoAssignJob.job_info.job_name || state.autoAssignJob.job_id}</code>?`)) return;
+      if (!await showConfirm(`Add <strong>${state.plan.total_metrics}</strong> metric(s) to existing job <code>${escapeHtml(state.autoAssignJob.job_info.job_name || state.autoAssignJob.job_id)}</code>?`)) return;
       body = {
         plan: state.plan.plan,
         snapshot_date: state.plan.snapshot_date,
@@ -363,7 +363,7 @@
       const presetVal = $schedulePreset.value;
       const cronExpr = presetVal === 'custom' ? $cronExpression.value.trim() : presetVal;
       if (!cronExpr) { showError('Please enter a CRON expression.'); return; }
-      if (!await showConfirm(`Deploy new scheduled job with CRON <code>${cronExpr}</code> (UTC) for <strong>${state.plan.total_metrics}</strong> metric(s)?`)) return;
+      if (!await showConfirm(`Deploy new scheduled job with CRON <code>${escapeHtml(cronExpr)}</code> (UTC) for <strong>${state.plan.total_metrics}</strong> metric(s)?`)) return;
       body = {
         plan: state.plan.plan,
         snapshot_date: state.plan.snapshot_date,
@@ -521,9 +521,36 @@
 
   function removeMetricFromPlan(levelIdx, metricName) {
     if (!state.plan) return;
-    const level = state.plan.plan[levelIdx];
-    if (!level) return;
-    level.metrics = level.metrics.filter(m => (typeof m === 'object' ? m.name : m) !== metricName);
+
+    // Build the full set of names to remove: target + transitive dependents.
+    const toRemove = new Set([metricName]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      state.plan.plan.forEach(level => {
+        level.metrics.forEach(m => {
+          const name = typeof m === 'object' ? m.name : m;
+          const deps = (typeof m === 'object' && Array.isArray(m.dependencies)) ? m.dependencies : [];
+          if (!toRemove.has(name) && deps.some(d => toRemove.has(d))) {
+            toRemove.add(name);
+            changed = true;
+          }
+        });
+      });
+    }
+
+    // Remove marked metrics and scrub dangling dependency references.
+    state.plan.plan.forEach(level => {
+      level.metrics = level.metrics
+        .filter(m => !toRemove.has(typeof m === 'object' ? m.name : m))
+        .map(m => {
+          if (typeof m === 'object' && Array.isArray(m.dependencies)) {
+            return { ...m, dependencies: m.dependencies.filter(d => !toRemove.has(d)) };
+          }
+          return m;
+        });
+    });
+
     state.plan.plan = state.plan.plan.filter(l => l.metrics.length > 0);
     state.plan.total_metrics = state.plan.plan.reduce((s, l) => s + l.metrics.length, 0);
     if (state.plan.total_metrics === 0) {
