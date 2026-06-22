@@ -246,8 +246,8 @@
   // ── Build Plan ───────────────────────────────────────────────────────────
   $btnBuild.addEventListener('click', async function() {
     const snapshotDate = $snapshotDate.value;
-    if (!snapshotDate) { alert('Please select a snapshot date.'); return; }
-    if (state.selected.size === 0) { alert('Please select at least one metric.'); return; }
+    if (!snapshotDate) { showError('Please select a snapshot date.'); return; }
+    if (state.selected.size === 0) { showError('Please select at least one metric.'); return; }
 
     $btnBuild.disabled = true;
     $btnBuild.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Building...';
@@ -346,12 +346,12 @@
 
   // ── Schedule Job ─────────────────────────────────────────────────────────
   $btnSchedule.addEventListener('click', async function() {
-    if (!state.plan) { alert('Build a plan first.'); return; }
+    if (!state.plan) { showError('Build a plan first.'); return; }
 
     let body;
     if (state.autoAssignJob) {
       // Auto-assign mode: add to existing job
-      if (!confirm(`Add ${state.plan.total_metrics} metric(s) to existing job "${state.autoAssignJob.job_info.job_name || state.autoAssignJob.job_id}"?`)) return;
+      if (!await showConfirm(`Add <strong>${state.plan.total_metrics}</strong> metric(s) to existing job <code>${state.autoAssignJob.job_info.job_name || state.autoAssignJob.job_id}</code>?`)) return;
       body = {
         plan: state.plan.plan,
         snapshot_date: state.plan.snapshot_date,
@@ -362,8 +362,8 @@
       // New job mode
       const presetVal = $schedulePreset.value;
       const cronExpr = presetVal === 'custom' ? $cronExpression.value.trim() : presetVal;
-      if (!cronExpr) { alert('Please enter a CRON expression.'); return; }
-      if (!confirm(`Deploy new scheduled job with CRON "${cronExpr}" (UTC) for ${state.plan.total_metrics} metrics?`)) return;
+      if (!cronExpr) { showError('Please enter a CRON expression.'); return; }
+      if (!await showConfirm(`Deploy new scheduled job with CRON <code>${cronExpr}</code> (UTC) for <strong>${state.plan.total_metrics}</strong> metric(s)?`)) return;
       body = {
         plan: state.plan.plan,
         snapshot_date: state.plan.snapshot_date,
@@ -402,6 +402,13 @@
       $btnSchedule.disabled = false;
       $btnSchedule.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Schedule';
     }
+  });
+
+  // ── Plan metric removal ──────────────────────────────────────────────────
+  $planContainer.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-remove-metric');
+    if (!btn) return;
+    removeMetricFromPlan(parseInt(btn.dataset.levelIdx, 10), btn.dataset.metric);
   });
 
   // ── Render Helpers ───────────────────────────────────────────────────────
@@ -494,22 +501,38 @@
         <strong>Plan Summary:</strong> ${data.total_metrics} metric(s) across ${data.plan.length} level(s) for snapshot <strong>${data.snapshot_date}</strong>
       </div>`;
 
-    data.plan.forEach(level => {
+    data.plan.forEach((level, li) => {
       html += `
-        <div class="mb-3 ps-3" style="border-left:3px solid #0d6efd;">
-          <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge bg-primary">${level.metrics.length}</span></h6>
+        <div class="level-group">
+          <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge level-badge">${level.metrics.length}</span></h6>
           <div class="d-flex flex-wrap gap-2">
             ${level.metrics.map(m => {
               const name = typeof m === 'object' ? m.name : m;
               const ext = (typeof m === 'object' && m.extraction_type) ? m.extraction_type : '';
               const badgeCls = ext.toUpperCase() === 'SNAPSHOT' ? 'bg-primary' : 'bg-secondary';
-              return `<span class="badge bg-light text-dark border">${name} <span class="badge ${badgeCls} ms-1" style="font-size:0.6em">${ext}</span></span>`;
+              return `<span class="badge metric-badge d-inline-flex align-items-center gap-1">${name}${ext ? ` <span class="badge ${badgeCls} ms-1" style="font-size:0.6em">${ext}</span>` : ''}<button type="button" class="btn-remove-metric btn btn-sm p-0 border-0 bg-transparent text-danger ms-1" data-level-idx="${li}" data-metric="${name}" title="Remove from plan" style="line-height:1;"><i class="bi bi-x-circle-fill" style="font-size:0.85em;"></i></button></span>`;
             }).join('')}
           </div>
         </div>`;
     });
 
     $planContainer.innerHTML = html;
+  }
+
+  function removeMetricFromPlan(levelIdx, metricName) {
+    if (!state.plan) return;
+    const level = state.plan.plan[levelIdx];
+    if (!level) return;
+    level.metrics = level.metrics.filter(m => (typeof m === 'object' ? m.name : m) !== metricName);
+    state.plan.plan = state.plan.plan.filter(l => l.metrics.length > 0);
+    state.plan.total_metrics = state.plan.plan.reduce((s, l) => s + l.metrics.length, 0);
+    if (state.plan.total_metrics === 0) {
+      $planContainer.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>All metrics removed. Select metrics and rebuild the plan.</div>';
+      $btnSchedule.disabled = true;
+      state.plan = null;
+      return;
+    }
+    renderPlan(state.plan);
   }
 })();
 </script>

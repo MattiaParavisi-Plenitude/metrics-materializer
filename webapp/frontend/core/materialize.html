@@ -156,8 +156,8 @@
   // ── Build Plan ───────────────────────────────────────────────────────────
   $btnBuild.addEventListener('click', async function() {
     const snapshotDate = $snapshotDate.value;
-    if (!snapshotDate) { alert('Please select a snapshot date.'); return; }
-    if (state.selected.size === 0) { alert('Please select at least one metric.'); return; }
+    if (!snapshotDate) { showError('Please select a snapshot date.'); return; }
+    if (state.selected.size === 0) { showError('Please select at least one metric.'); return; }
 
     $btnBuild.disabled = true;
     $btnBuild.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Building...';
@@ -188,9 +188,9 @@
 
   // ── Submit Job ───────────────────────────────────────────────────────────
   $btnSubmit.addEventListener('click', async function() {
-    if (!state.plan) { alert('Build a plan first.'); return; }
+    if (!state.plan) { showError('Build a plan first.'); return; }
 
-    if (!confirm(`Submit materialization job for ${state.plan.total_metrics} metrics on ${state.plan.snapshot_date}?`)) return;
+    if (!await showConfirm(`Submit materialization job for <strong>${state.plan.total_metrics}</strong> metric(s) on snapshot <strong>${state.plan.snapshot_date}</strong>?`)) return;
 
     $btnSubmit.disabled = true;
     $btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
@@ -227,6 +227,13 @@
       $btnSubmit.disabled = false;
       $btnSubmit.innerHTML = '<i class="bi bi-send me-1"></i>Submit to Databricks';
     }
+  });
+
+  // ── Plan metric removal ──────────────────────────────────────────────────
+  $planContainer.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-remove-metric');
+    if (!btn) return;
+    removeMetricFromPlan(parseInt(btn.dataset.levelIdx, 10), btn.dataset.metric);
   });
 
   // ── Render Helpers ───────────────────────────────────────────────────────
@@ -301,17 +308,36 @@
         <strong>Plan Summary:</strong> ${data.total_metrics} metric(s) across ${data.plan.length} level(s) for snapshot <strong>${data.snapshot_date}</strong>
       </div>`;
 
-    data.plan.forEach(level => {
+    data.plan.forEach((level, li) => {
       html += `
-        <div class="mb-3 ps-3" style="border-left:3px solid #0d6efd;">
-          <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge bg-primary">${level.metrics.length}</span></h6>
+        <div class="level-group">
+          <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge level-badge">${level.metrics.length}</span></h6>
           <div class="d-flex flex-wrap gap-2">
-            ${level.metrics.map(m => `<span class="badge bg-light text-dark border">${typeof m === 'object' ? m.name : m}</span>`).join('')}
+            ${level.metrics.map(m => {
+              const name = typeof m === 'object' ? m.name : m;
+              return `<span class="badge metric-badge d-inline-flex align-items-center gap-1">${name}<button type="button" class="btn-remove-metric btn btn-sm p-0 border-0 bg-transparent text-danger ms-1" data-level-idx="${li}" data-metric="${name}" title="Remove from plan" style="line-height:1;"><i class="bi bi-x-circle-fill" style="font-size:0.85em;"></i></button></span>`;
+            }).join('')}
           </div>
         </div>`;
     });
 
     $planContainer.innerHTML = html;
+  }
+
+  function removeMetricFromPlan(levelIdx, metricName) {
+    if (!state.plan) return;
+    const level = state.plan.plan[levelIdx];
+    if (!level) return;
+    level.metrics = level.metrics.filter(m => (typeof m === 'object' ? m.name : m) !== metricName);
+    state.plan.plan = state.plan.plan.filter(l => l.metrics.length > 0);
+    state.plan.total_metrics = state.plan.plan.reduce((s, l) => s + l.metrics.length, 0);
+    if (state.plan.total_metrics === 0) {
+      $planContainer.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>All metrics removed. Select metrics and rebuild the plan.</div>';
+      $btnSubmit.disabled = true;
+      state.plan = null;
+      return;
+    }
+    renderPlan(state.plan);
   }
 })();
 </script>

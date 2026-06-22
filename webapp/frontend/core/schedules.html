@@ -163,14 +163,14 @@
             const willDelete = preview.will_delete_job;
 
             // Step 2: Show detailed confirmation
-            let confirmMsg = `Removing "${metric}" will also remove the following metrics (dependencies + dependents):\n\n`;
-            confirmMsg += removeList.map(m => `  • ${m}`).join('\n');
+            let confirmHtml = `<p>Removing <strong>"${metric}"</strong> will also remove the following metrics (dependencies + dependents):</p><ul class="mb-2">`;
+            confirmHtml += removeList.map(m => `<li><code>${m}</code></li>`).join('');
+            confirmHtml += '</ul>';
             if (willDelete) {
-              confirmMsg += `\n\n⚠️ This will DELETE the entire job (no metrics left).`;
+              confirmHtml += '<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>This will <strong>DELETE the entire job</strong> (no metrics left).</div>';
             }
-            confirmMsg += '\n\nProceed?';
 
-            if (!confirm(confirmMsg)) {
+            if (!await showConfirm(confirmHtml)) {
               this.disabled = false;
               this.innerHTML = '<i class="bi bi-x-lg"></i>';
               return;
@@ -187,7 +187,7 @@
 
             loadJobs();
           } catch (err) {
-            alert(err.message);
+            showError(err.message);
             this.disabled = false;
             this.innerHTML = '<i class="bi bi-x-lg"></i>';
           }
@@ -198,7 +198,7 @@
       document.querySelectorAll('.btn-run-now').forEach(btn => {
         btn.addEventListener('click', async function() {
           const jobId = this.dataset.jobId;
-          if (!confirm('Trigger an immediate run of this job?')) return;
+          if (!await showConfirm('Trigger an immediate run of this job?')) return;
 
           this.disabled = true;
           this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Triggering...';
@@ -228,7 +228,7 @@
               this.classList.add('btn-outline-success');
             }, 3000);
           } catch (err) {
-            alert(err.message);
+            showError(err.message);
             this.disabled = false;
             this.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Now';
           }
@@ -294,7 +294,7 @@
     const cron = document.getElementById('modalCron').value.trim();
     const tz = document.getElementById('modalTimezone').value;
 
-    if (!cron) { alert('Please enter a CRON expression.'); return; }
+    if (!cron) { showError('Please enter a CRON expression.'); return; }
     if (!currentJobId) return;
 
     this.disabled = true;
@@ -317,7 +317,7 @@
       bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
       loadJobs();
     } catch (err) {
-      alert(err.message);
+      showError(err.message);
     } finally {
       this.disabled = false;
       this.innerHTML = '<i class="bi bi-check-lg me-1"></i>Update Schedule';

@@ -61,7 +61,10 @@ body {
 .navbar-pln {
     background: var(--pln-gradient-3) !important;
     box-shadow: var(--pln-shadow-sm);
-    padding: 0.75rem 0;
+}
+
+.navbar-pln .navbar {
+    padding: 0.5rem 0;
 }
 
 .navbar-pln .navbar-brand {
@@ -394,6 +397,35 @@ body {
 .feature-icon-light-green {
     background-color: rgba(var(--pln-green-light-rgb), 0.15);
     color: #6a8c2e;
+}
+
+/* ==========================================
+   USER AVATAR
+   ========================================== */
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+.user-avatar:hover,
+.user-avatar:focus {
+    background-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    text-decoration: none;
 }
 
 /* ==========================================
