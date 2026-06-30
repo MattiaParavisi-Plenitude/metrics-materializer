@@ -63,7 +63,7 @@
 
       const jobs = data.jobs || [];
       if (jobs.length === 0) {
-        $container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>No scheduled jobs found. Go to <a href="/schedule">Schedule</a> to create one.</div>';
+        $container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>No scheduled jobs found. Go to <a href="{{ url_for('core.schedule') }}">Schedule</a> to create one.</div>';
         return;
       }
 

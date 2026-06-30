@@ -46,6 +46,13 @@ body {
     color: var(--pln-text-dark);
     background-color: var(--pln-bg-beige);
     line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1 0 auto;
 }
 
 .lead {
@@ -224,10 +231,15 @@ body {
 
 .btn {
     font-weight: 600;
-    padding: 0.625rem 1.5rem;
+    padding: 0.7rem 1.65rem;
     border-radius: var(--pln-radius-sm);
     transition: all 0.3s ease;
     letter-spacing: 0.3px;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
 }
 
 .btn-pln-green {
@@ -421,8 +433,10 @@ body {
 .footer-pln {
     background: var(--pln-gradient-3);
     color: rgba(255, 255, 255, 0.7);
-    padding: 1.5rem 0;
-    margin-top: 3rem;
+    min-height: 76px;
+    padding: 1rem 0;
+    display: flex;
+    align-items: center;
 }
 
 /* ==========================================
@@ -461,4 +475,3 @@ code {
 hr {
     border-color: rgba(var(--pln-green-primary-rgb), 0.1);
 }
-
