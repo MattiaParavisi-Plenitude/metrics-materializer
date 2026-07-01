@@ -48,6 +48,10 @@ body {
     line-height: 1.6;
 }
 
+main {
+    width: 100%;
+}
+
 .lead {
     font-size: 1.25rem;
     font-weight: 300;
@@ -224,10 +228,18 @@ body {
 
 .btn {
     font-weight: 600;
-    padding: 0.625rem 1.5rem;
+    padding: 0.7rem 1.6rem;
     border-radius: var(--pln-radius-sm);
     transition: all 0.3s ease;
     letter-spacing: 0.3px;
+}
+
+.btn-sm {
+    padding: 0.5rem 0.9rem;
+}
+
+.btn-lg {
+    padding: 0.9rem 2.1rem;
 }
 
 .btn-pln-green {
@@ -461,4 +473,3 @@ code {
 hr {
     border-color: rgba(var(--pln-green-primary-rgb), 0.1);
 }
-

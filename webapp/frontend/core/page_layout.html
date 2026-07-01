@@ -6,12 +6,12 @@
   {% block extrastyle %}{% endblock extrastyle %}
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
   {% block nav %}
   {% include 'core/layout/nav.html' %}
   {% endblock nav %}
 
-  <main class="py-4">
+  <main class="flex-grow-1 py-4">
     {% block content %}{% endblock content %}
   </main>
 
