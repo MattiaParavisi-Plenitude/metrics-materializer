@@ -63,7 +63,7 @@
 
       const jobs = data.jobs || [];
       if (jobs.length === 0) {
-        $container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>No scheduled jobs found. Go to <a href="/schedule">Schedule</a> to create one.</div>';
+        $container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>No scheduled jobs found. Go to <a href="{{ url_for('core.schedule') }}">Schedule</a> to create one.</div>';
         return;
       }
 
@@ -116,7 +116,7 @@
                         <td><strong>${m.metric_name}</strong></td>
                         <td><span class="badge ${m.extraction_type && m.extraction_type.toUpperCase() === 'SNAPSHOT' ? 'bg-primary' : 'bg-secondary'}">${m.extraction_type || '?'}</span></td>
                         <td><small class="text-muted">${m.assigned_at ? new Date(m.assigned_at).toLocaleDateString() : '-'}</small></td>
-                        <td><button class="btn btn-sm btn-outline-danger py-0 btn-remove-metric" data-metric="${m.metric_name}" data-job-id="${job.job_id}" title="Remove from schedule"><i class="bi bi-x-lg"></i></button></td>
+                        <td><button class="btn btn-sm btn-outline-danger btn-remove-metric" data-metric="${m.metric_name}" data-job-id="${job.job_id}" title="Remove from schedule"><i class="bi bi-x-lg"></i></button></td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -268,7 +268,7 @@
                       return `<small class="${t.result === 'SUCCESS' ? 'text-success' : (t.result === 'FAILED' ? 'text-danger' : 'text-warning')}">${icon} ${t.task_key}</small>`;
                     }).join('<br>')
                   : '-';
-                statusHtml += `<tr><td><small>${run.run_id}</small></td><td class="${stateClass}">${run.state}</td><td>${resultBadge}</td><td><small>${startTime}</small></td><td>${taskSummary}</td><td>${run.run_page_url ? `<a href="${run.run_page_url}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td></tr>`;
+                statusHtml += `<tr><td><small>${run.run_id}</small></td><td class="${stateClass}">${run.state}</td><td>${resultBadge}</td><td><small>${startTime}</small></td><td>${taskSummary}</td><td>${run.run_page_url ? `<a href="${run.run_page_url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td></tr>`;
               });
               statusHtml += '</tbody></table></div></div>';
               panel.innerHTML = statusHtml;

@@ -199,7 +199,7 @@
       });
 
       if (state.metrics.length === 0) {
-        $metricsContainer.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-check-circle me-2"></i>All metrics are already assigned to scheduled jobs. Go to <a href="/schedules">Manage Schedules</a> to view them.</div>';
+        $metricsContainer.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-check-circle me-2"></i>All metrics are already assigned to scheduled jobs. Go to <a href="{{ url_for('core.schedules') }}">Manage Schedules</a> to view them.</div>';
       } else {
         renderMetrics(state.metrics);
       }

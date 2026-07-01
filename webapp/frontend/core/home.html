@@ -2,17 +2,17 @@
 {% block content %}
 
 <!-- Hero Section -->
-<section class="py-5" style="background: linear-gradient(135deg, #008051 0%, #95b849 100%); color: white;">
+<section class="hero-section">
   <div class="container">
     <div class="row align-items-center">
       <div class="col-lg-8">
         <h1 class="display-4 fw-bold mb-3">Metrics Materializer</h1>
-        <p class="lead mb-4 fw-bold text-dark">
+        <p class="lead mb-4 fw-bold">
           Materialize metric tables in Databricks for a specific snapshot date.
           Select the metrics you need, review the dependency tree, and run or schedule jobs.
         </p>
         <div class="d-flex gap-3 flex-wrap">
-          <a href="{{ url_for('core.materialize') }}" class="btn btn-warning btn-lg fw-bold">
+          <a href="{{ url_for('core.materialize') }}" class="btn btn-pln-yellow btn-lg fw-bold">
             <i class="bi bi-play-circle-fill me-2"></i>One-Time Run
           </a>
           <a href="{{ url_for('core.schedule') }}" class="btn btn-light btn-lg fw-bold">
@@ -180,7 +180,7 @@
             <td>${row.DATA_SNAPSHOT || '-'}</td>
             <td><small>${ts}</small></td>
             <td><small class="text-muted">${row.JOB_NAME || '-'}</small></td>
-            <td>${jobUrl ? `<a href="${jobUrl}" target="_blank" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td>
+            <td>${jobUrl ? `<a href="${jobUrl}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td>
           </tr>`;
       });
 
