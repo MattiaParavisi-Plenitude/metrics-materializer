@@ -43,7 +43,22 @@ def _get_config():
     if local_cfg.exists() and not os.getenv("DATABRICKS_CONFIG_FILE"):
         os.environ["DATABRICKS_CONFIG_FILE"] = str(local_cfg)
 
-    return config.Config()
+    env_host = (os.getenv("DATABRICKS_HOST", "") or "").strip()
+    env_token = (os.getenv("DATABRICKS_TOKEN", "") or "").strip()
+    should_mask_partial_env = bool(env_host) != bool(env_token)
+    if not should_mask_partial_env:
+        return config.Config()
+
+    # Prevent partial env credentials from overriding local cfg/SDK fallback resolution.
+    previous_host = os.environ.pop("DATABRICKS_HOST", None)
+    previous_token = os.environ.pop("DATABRICKS_TOKEN", None)
+    try:
+        return config.Config()
+    finally:
+        if previous_host is not None:
+            os.environ["DATABRICKS_HOST"] = previous_host
+        if previous_token is not None:
+            os.environ["DATABRICKS_TOKEN"] = previous_token
 
 
 def _get_workspace_client():
