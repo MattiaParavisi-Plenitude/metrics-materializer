@@ -1,7 +1,7 @@
 # metrics-materializer
 Questa repo contiene il materiale che è stato creato per l'applicazione di materializzazione delle metriche
 
-Per il primo avvio inserisci il tuo token personale in databricks.cfg che deve essere taggato su databricks con SQL.
+Per il primo avvio inserisci il tuo token personale in databricks.cfg che deve essere taggato su databricks con SQL e cluster.
 
 Esempio in `databricks.cfg`:
 
