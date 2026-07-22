@@ -135,8 +135,3 @@ def execute_query(sql_string, max_rows=1000):
     except Exception as e:
         print(f"Query error: {e}")
         return []
-
-
-def execute_statement(sql_string):
-    """Execute a SQL statement (no result expected)."""
-    _execute_inline_statement(sql_string)

@@ -83,7 +83,7 @@
       </div>
       <div class="mt-3 p-3 bg-light rounded">
         <small class="text-muted">
-          <strong>Job name:</strong> auto-generated as <code>METR-COMPUTE-&lt;hash&gt;</code><br>
+          <strong>Job name:</strong> auto-generated as <code>MTRCS_MATERIALIZE_&lt;hash&gt;</code><br>
           <strong>Timezone:</strong> UTC
         </small>
       </div>
@@ -135,8 +135,10 @@
   const $customCronWrapper = document.getElementById('customCronWrapper');
   const $scheduleConfig = document.getElementById('scheduleConfigCard');
 
-  // Set default date to today
-  $snapshotDate.value = new Date().toISOString().split('T')[0];
+  // Set default date to today; snapshot dates must be today or in the past
+  const _todayStr = new Date().toISOString().split('T')[0];
+  $snapshotDate.max = _todayStr;
+  $snapshotDate.value = _todayStr;
 
   // ── Preset/Custom toggle ─────────────────────────────────────────────────
   $schedulePreset.addEventListener('change', function() {
@@ -404,6 +406,13 @@
     }
   });
 
+  // ── Plan metric removal ──────────────────────────────────────────────────
+  $planContainer.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-remove-metric');
+    if (!btn) return;
+    removeMetricFromPlan(parseInt(btn.dataset.levelIdx, 10), btn.dataset.metric);
+  });
+
   // ── Render Helpers ───────────────────────────────────────────────────────
   function renderMetrics(metrics) {
     if (!metrics.length) {
@@ -484,7 +493,7 @@
     });
     $snapshotDate.disabled = !hasSnapshot;
     if (!hasSnapshot) {
-      $snapshotDate.value = new Date().toISOString().split('T')[0];
+      $snapshotDate.value = _todayStr;
     }
   }
 
@@ -494,7 +503,7 @@
         <strong>Plan Summary:</strong> ${data.total_metrics} metric(s) across ${data.plan.length} level(s) for snapshot <strong>${data.snapshot_date}</strong>
       </div>`;
 
-    data.plan.forEach(level => {
+    data.plan.forEach((level, li) => {
       html += `
         <div class="mb-3 ps-3" style="border-left:3px solid #0d6efd;">
           <h6 class="fw-bold mb-2">Level ${level.level} <span class="badge bg-primary">${level.metrics.length}</span></h6>
@@ -503,13 +512,29 @@
               const name = typeof m === 'object' ? m.name : m;
               const ext = (typeof m === 'object' && m.extraction_type) ? m.extraction_type : '';
               const badgeCls = ext.toUpperCase() === 'SNAPSHOT' ? 'bg-primary' : 'bg-secondary';
-              return `<span class="badge bg-light text-dark border">${name} <span class="badge ${badgeCls} ms-1" style="font-size:0.6em">${ext}</span></span>`;
+              return `<span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1">${name}${ext ? ` <span class="badge ${badgeCls} ms-1" style="font-size:0.6em">${ext}</span>` : ''}<button type="button" class="btn-remove-metric btn btn-sm p-0 border-0 bg-transparent text-danger ms-1" data-level-idx="${li}" data-metric="${name}" title="Remove from plan" style="line-height:1;"><i class="bi bi-x-circle-fill" style="font-size:0.85em;"></i></button></span>`;
             }).join('')}
           </div>
         </div>`;
     });
 
     $planContainer.innerHTML = html;
+  }
+
+  function removeMetricFromPlan(levelIdx, metricName) {
+    if (!state.plan) return;
+    const level = state.plan.plan[levelIdx];
+    if (!level) return;
+    level.metrics = level.metrics.filter(m => (typeof m === 'object' ? m.name : m) !== metricName);
+    state.plan.plan = state.plan.plan.filter(l => l.metrics.length > 0);
+    state.plan.total_metrics = state.plan.plan.reduce((s, l) => s + l.metrics.length, 0);
+    if (state.plan.total_metrics === 0) {
+      $planContainer.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>All metrics removed. Select metrics and rebuild the plan.</div>';
+      $btnSchedule.disabled = true;
+      state.plan = null;
+      return;
+    }
+    renderPlan(state.plan);
   }
 })();
 </script>

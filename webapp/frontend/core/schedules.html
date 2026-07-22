@@ -106,7 +106,6 @@
                     <tr>
                       <th>Metric</th>
                       <th>Type</th>
-                      <th>Assigned</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -115,7 +114,6 @@
                       <tr>
                         <td><strong>${m.metric_name}</strong></td>
                         <td><span class="badge ${m.extraction_type && m.extraction_type.toUpperCase() === 'SNAPSHOT' ? 'bg-primary' : 'bg-secondary'}">${m.extraction_type || '?'}</span></td>
-                        <td><small class="text-muted">${m.assigned_at ? new Date(m.assigned_at).toLocaleDateString() : '-'}</small></td>
                         <td><button class="btn btn-sm btn-outline-danger py-0 btn-remove-metric" data-metric="${m.metric_name}" data-job-id="${job.job_id}" title="Remove from schedule"><i class="bi bi-x-lg"></i></button></td>
                       </tr>
                     `).join('')}

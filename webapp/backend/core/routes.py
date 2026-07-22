@@ -85,17 +85,6 @@ def schedules():
 
 # ─── API Routes ───────────────────────────────────────────────────────────────
 
-@blueprint.route("/api/metrics", methods=["GET"])
-def api_get_metrics():
-    """Fetch all available SNAPSHOT metrics from the metadata view."""
-    try:
-        query = f"SELECT METRIC_NAME as metric_name, EXTRACTION_TYPE, VERSION, MASKING, TAGS FROM {METRICS_VIEW} WHERE EXTRACTION_TYPE = 'SNAPSHOT' ORDER BY METRIC_NAME"
-        results = execute_query(query)
-        return jsonify({"success": True, "data": results, "count": len(results)})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
 @blueprint.route("/api/metrics/all", methods=["GET"])
 def api_get_all_metrics():
     """Fetch all metrics (all extraction types) from the metadata view."""
@@ -109,9 +98,9 @@ def api_get_all_metrics():
 
 @blueprint.route("/api/debug/metrics", methods=["GET"])
 def api_debug_metrics():
-    """Debug endpoint: returns raw query results with column names visible (SNAPSHOT only)."""
+    """Debug endpoint: returns raw query results with column names visible."""
     try:
-        query = f"SELECT METRIC_NAME as metric_name, EXTRACTION_TYPE, VERSION, MASKING, TAGS FROM {METRICS_VIEW} WHERE EXTRACTION_TYPE = 'SNAPSHOT' LIMIT 3"
+        query = f"SELECT METRIC_NAME as metric_name, EXTRACTION_TYPE, VERSION, MASKING, TAGS FROM {METRICS_VIEW} LIMIT 3"
         results = execute_query(query)
         columns = list(results[0].keys()) if results else []
         return jsonify({
@@ -170,14 +159,11 @@ def api_build_plan():
 
         # Build dependency graph: metric -> list of dependencies
         deps_map = defaultdict(set)
-        all_metrics_in_hierarchy = set()
         for row in hierarchy_rows:
             metric = (row.get("METRIC_NAME") or row.get("metric_name") or "").lower()
             dependency = (row.get("DEPENDENCY") or row.get("dependency_name") or "").lower()
             if metric and dependency:
                 deps_map[metric].add(dependency)
-            if metric:
-                all_metrics_in_hierarchy.add(metric)
 
         # Resolve full dependency closure for selected metrics
         selected_lower = {m.lower() for m in selected_metrics}
@@ -196,6 +182,23 @@ def api_build_plan():
         # Topological sort to determine levels
         levels = _compute_levels(to_materialize, deps_map)
 
+        # Determine historicization_type per metric:
+        # metrics that already have at least one COMPLETED transition → SNAPSHOT (append mode)
+        # metrics with no history → TINSERT (first full load)
+        try:
+            hist_query = f"""
+                SELECT DISTINCT METRIC_NAME
+                FROM {STATUS_TRANSITIONS_VIEW}
+                WHERE STATUS_TO = 'COMPLETED'
+            """
+            hist_rows = execute_query(hist_query, max_rows=10000)
+            metrics_with_history = {
+                (row.get("METRIC_NAME") or row.get("metric_name") or "").lower()
+                for row in hist_rows
+            }
+        except Exception:
+            metrics_with_history = set()
+
         # Build the execution plan (include deps for submit)
         plan = []
         for level_num in sorted(levels.keys()):
@@ -204,7 +207,13 @@ def api_build_plan():
                 # Only keep deps that are within the resolved set
                 metric_deps = sorted(deps_map.get(m, set()) & to_materialize)
                 ext_type = extraction_type_map.get(m, "")
-                level_metrics.append({"name": m, "dependencies": metric_deps, "extraction_type": ext_type})
+                hist_type = "SNAPSHOT" if m in metrics_with_history else "TINSERT"
+                level_metrics.append({
+                    "name": m,
+                    "dependencies": metric_deps,
+                    "extraction_type": ext_type,
+                    "historicization_type": hist_type,
+                })
             plan.append({
                 "level": level_num,
                 "metrics": level_metrics,
@@ -226,7 +235,7 @@ def api_build_plan():
 def api_submit_job():
     """
     Submit the materialization job to Databricks.
-    Expects JSON body: { "plan": [...], "snapshot_date": "2026-01-15", "batch_size": 50 }
+    Expects JSON body: { "plan": [...], "snapshot_date": "2026-01-15" }
     """
     payload = request.get_json(silent=True)
     if not payload:
@@ -234,7 +243,6 @@ def api_submit_job():
 
     plan = payload.get("plan", [])
     snapshot_date = payload.get("snapshot_date", "")
-    batch_size = payload.get("batch_size", 50)
 
     if not plan:
         return jsonify({"success": False, "error": "No execution plan provided"}), 400
@@ -246,7 +254,7 @@ def api_submit_job():
         if not submit_tasks:
             return jsonify({"success": False, "error": "No tasks generated from plan"}), 400
 
-        w = get_workspace_client()
+        w = _get_workspace_client()
         waiter = w.jobs.submit(
             run_name=f"METRICS_MATERIALIZE_{snapshot_date}",
             tasks=submit_tasks,
@@ -329,15 +337,12 @@ def api_schedule_job():
     if not plan:
         return jsonify({"success": False, "error": "No execution plan provided"}), 400
 
-    # Collect metric names and extraction types from plan
+    # Collect metric names from plan (needed for job name generation)
     metric_names = []
-    extraction_types = {}
     for level_info in plan:
         for m in level_info.get("metrics", []):
             name = m["name"] if isinstance(m, dict) else m
             metric_names.append(name.lower())
-            if isinstance(m, dict) and m.get("extraction_type"):
-                extraction_types[name.lower()] = m["extraction_type"]
 
     try:
         w = _get_workspace_client()
@@ -386,17 +391,6 @@ def api_schedule_job():
                 new_settings=existing_job.settings,
             )
 
-            # Register in CSV
-            job_info = registry.get_jobs().get(str(target_job_id), {})
-            registry.register_metrics(
-                metric_names=metric_names,
-                job_id=str(target_job_id),
-                job_name=job_info.get("job_name", existing_job.settings.name or ""),
-                cron_expression=job_info.get("cron_expression", ""),
-                timezone_id=job_info.get("timezone", tz),
-                extraction_types=extraction_types,
-            )
-
             host = w.config.host.rstrip("/")
             job_url = f"{host}/jobs/{target_job_id}"
             return jsonify({
@@ -434,16 +428,6 @@ def api_schedule_job():
             host = w.config.host.rstrip("/")
             job_url = f"{host}/jobs/{job_id}"
 
-            # Register in CSV
-            registry.register_metrics(
-                metric_names=metric_names,
-                job_id=str(job_id),
-                job_name=job_name,
-                cron_expression=cron_expression,
-                timezone_id=tz,
-                extraction_types=extraction_types,
-            )
-
             return jsonify({
                 "success": True,
                 "message": "Scheduled job created successfully",
@@ -457,16 +441,37 @@ def api_schedule_job():
 
 @blueprint.route("/api/registry/unassigned", methods=["GET"])
 def api_registry_unassigned():
-    """Return metric names that are NOT assigned to any scheduled job."""
-    assigned = registry.get_assigned_metric_names()
-    return jsonify({"success": True, "assigned": sorted(assigned)})
+    """Return metric names assigned to any managed job (live from Databricks SDK)."""
+    try:
+        w = _get_workspace_client()
+        assigned = registry.get_assigned_metric_names(w)
+        return jsonify({"success": True, "assigned": sorted(assigned)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @blueprint.route("/api/registry/jobs", methods=["GET"])
 def api_registry_jobs():
-    """Return all scheduled jobs with their metrics (for the manage page)."""
-    jobs = registry.get_jobs()
-    return jsonify({"success": True, "jobs": list(jobs.values())})
+    """Return all managed jobs with their metrics (live from Databricks SDK)."""
+    try:
+        w = _get_workspace_client()
+        # Enrich metrics with extraction_type from metadata view
+        try:
+            meta_rows = execute_query(
+                f"SELECT METRIC_NAME, EXTRACTION_TYPE FROM {METRICS_VIEW}",
+                max_rows=10000,
+            )
+            ext_map = {
+                (r.get("METRIC_NAME") or r.get("metric_name") or "").lower():
+                (r.get("EXTRACTION_TYPE") or r.get("extraction_type") or "")
+                for r in meta_rows
+            }
+        except Exception:
+            ext_map = {}
+        jobs = registry.get_jobs(w, ext_map)
+        return jsonify({"success": True, "jobs": list(jobs.values())})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @blueprint.route("/api/registry/job-for-dep", methods=["POST"])
@@ -482,27 +487,32 @@ def api_registry_job_for_dep():
     deps = payload.get("dependencies", []) if payload else []
     metrics = payload.get("metrics", []) if payload else []
 
-    # Forward check: my dependencies are in a job
-    for dep in deps:
-        job_id = registry.find_job_for_dependency(dep)
-        if job_id:
-            jobs = registry.get_jobs()
-            job_info = jobs.get(job_id, {})
-            return jsonify({"success": True, "found": True, "job_id": job_id, "job_info": job_info, "direction": "forward"})
+    try:
+        w = _get_workspace_client()
 
-    # Reverse check: metrics in a job depend on me
-    if metrics:
-        try:
-            hierarchy_query = f"SELECT * FROM {HIERARCHY_VIEW}"
-            hierarchy_rows = execute_query(hierarchy_query)
-            for metric in metrics:
-                job_id = registry.find_job_for_dependent(metric, hierarchy_rows)
-                if job_id:
-                    jobs = registry.get_jobs()
-                    job_info = jobs.get(job_id, {})
-                    return jsonify({"success": True, "found": True, "job_id": job_id, "job_info": job_info, "direction": "reverse"})
-        except Exception:
-            pass  # If hierarchy fetch fails, just skip reverse check
+        # Forward check: my dependencies are in a job
+        for dep in deps:
+            job_id = registry.find_job_for_dependency(dep, w)
+            if job_id:
+                jobs = registry.get_jobs(w)
+                job_info = jobs.get(job_id, {})
+                return jsonify({"success": True, "found": True, "job_id": job_id, "job_info": job_info, "direction": "forward"})
+
+        # Reverse check: metrics in a job depend on me
+        if metrics:
+            try:
+                hierarchy_rows = execute_query(f"SELECT * FROM {HIERARCHY_VIEW}")
+                for metric in metrics:
+                    job_id = registry.find_job_for_dependent(metric, hierarchy_rows, w)
+                    if job_id:
+                        jobs = registry.get_jobs(w)
+                        job_info = jobs.get(job_id, {})
+                        return jsonify({"success": True, "found": True, "job_id": job_id, "job_info": job_info, "direction": "reverse"})
+            except Exception:
+                pass  # If hierarchy fetch fails, skip reverse check
+
+    except Exception:
+        pass  # If SDK fails, fall through to not-found
 
     return jsonify({"success": True, "found": False})
 
@@ -535,9 +545,6 @@ def api_reschedule():
             pause_status=PauseStatus.UNPAUSED,
         )
         w.jobs.reset(job_id=int(job_id), new_settings=existing_job.settings)
-
-        # Update registry
-        registry.update_schedule(job_id=str(job_id), cron_expression=cron_expression, timezone_id=tz)
 
         return jsonify({
             "success": True,
@@ -664,8 +671,9 @@ def api_registry_remove_metric():
             if m and d:
                 dependents_of[d].add(m)
 
-        # Get all metrics currently in this job
-        job_metrics = registry.get_metrics_in_job(job_id) if job_id else set()
+        # Get all metrics currently in this job (live from SDK)
+        w = _get_workspace_client()
+        job_metrics = registry.get_metrics_in_job(job_id, w) if job_id else set()
 
         # Cascade UPWARD only — find all metrics in the job that depend on the removed one
         metrics_to_remove = {metric_name}
@@ -705,7 +713,6 @@ def api_registry_remove_metric():
         job_deleted = False
         if job_id:
             try:
-                w = _get_workspace_client()
                 existing_job = w.jobs.get(job_id=int(job_id))
                 task_keys_to_remove = {m.upper() for m in metrics_to_remove}
                 existing_tasks = list(existing_job.settings.tasks or [])
@@ -725,13 +732,7 @@ def api_registry_remove_metric():
                     w.jobs.delete(job_id=int(job_id))
                     job_deleted = True
             except Exception:
-                pass  # Still remove from registry even if Databricks call fails
-
-        # Remove from registry
-        if job_deleted:
-            registry.unregister_job(job_id)
-        else:
-            registry.unregister_metrics(list(metrics_to_remove))
+                pass  # Databricks call failed; job state may be partially updated
 
         msg = f"Removed {len(removed_list)} metric(s): {', '.join(removed_list)}"
         if job_deleted:
@@ -745,7 +746,7 @@ def api_registry_remove_metric():
 # ─── Helper Functions ─────────────────────────────────────────────────────────
 
 def _get_workspace_client() -> WorkspaceClient:
-    """Create and return a WorkspaceClient (cached per-request if needed)."""
+    """Return a WorkspaceClient. Single call-site so all routes stay consistent."""
     return get_workspace_client()
 
 
@@ -820,10 +821,12 @@ def _build_submit_tasks(plan: list, snapshot_date: str) -> list[SubmitTask]:
                 metric_name = metric_entry["name"]
                 deps = metric_entry.get("dependencies", [])
                 ext_type = metric_entry.get("extraction_type", "")
+                hist_type = metric_entry.get("historicization_type", "TINSERT")
             else:
                 metric_name = metric_entry
                 deps = []
                 ext_type = ""
+                hist_type = "TINSERT"
 
             task_key = metric_name.upper()
 
@@ -861,6 +864,7 @@ def _build_submit_tasks(plan: list, snapshot_date: str) -> list[SubmitTask]:
                         "job_name": "{{job.name}}",
                         "workspace_id": "{{workspace.id}}",
                         "workspace_url": "{{workspace.url}}",
+                        "historicization_type": hist_type,
                     },
                 ),
                 timeout_seconds=JOB_TIMEOUT_SECONDS,
@@ -935,6 +939,7 @@ def _build_persistent_tasks(plan: list, snapshot_date: str) -> list[Task]:
                         "job_name": "{{job.name}}",
                         "workspace_id": "{{workspace.id}}",
                         "workspace_url": "{{workspace.url}}",
+                        "historicization_type": "SNAPSHOT",
                     },
                 ),
                 timeout_seconds=JOB_TIMEOUT_SECONDS,
